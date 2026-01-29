@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Itinerary - SharePoint Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 40px 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        header p {
+            opacity: 0.9;
+            font-size: 1.1rem;
+        }
+        
+        .status-bar {
+            background: rgba(255,255,255,0.2);
+            padding: 10px 20px;
+            border-radius: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            color: white;
+        }
+        
+        .status-bar button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+        }
+        
+        .status-bar button:hover {
+            transform: scale(1.05);
+        }
+        
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        
+        .event-card {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s;
+        }
+        
+        .event-card:hover {
+            transform: translateY(-5px);
+        }
+        
+        .event-card h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .event-detail {
+            display: flex;
+            margin-bottom: 10px;
+            color: #666;
+        }
+        
+        .event-detail .label {
+            font-weight: 600;
+            min-width: 100px;
+            color: #764ba2;
+        }
+        
+        .loading {
+            text-align: center;
+            color: white;
+            font-size: 1.5rem;
+            padding: 50px;
+        }
+        
+        .error {
+            background: #ff6b6b;
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .empty {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            text-align: center;
+            color: #666;
+        }
+        
+        .pulse {
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📅 Event Itinerary</h1>
+            <p>Live data from SharePoint</p>
+        </header>
+        
+        <div class="status-bar">
+            <div>
+                <span id="itemCount">-</span> events | 
+                Last updated: <span id="lastUpdate">Never</span>
+            </div>
+            <button onclick="fetchEvents()">🔄 Refresh</button>
+        </div>
+        
+        <div id="eventsContainer" class="events-grid">
+            <div class="loading pulse">Loading events from SharePoint...</div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = '/api/events';
+
+        async function fetchEvents() {
+            const container = document.getElementById('eventsContainer');
+            
+            try {
+                const response = await fetch(API_URL);
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                
+                // Update status
+                document.getElementById('itemCount').textContent = result.count;
+                document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+                
+                // Render events
+                if (result.data.length === 0) {
+                    container.innerHTML = '<div class="empty">No events found. Add some items to your SharePoint list!</div>';
+                    return;
+                }
+                
+                container.innerHTML = result.data.map(event => `
+                    <div class="event-card">
+                        <h3>${event.Title || 'Untitled Event'}</h3>
+                        ${renderEventDetails(event)}
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error:', error);
+                container.innerHTML = `
+                    <div class="error">
+                        <h3>⚠️ Error fetching events</h3>
+                        <p>${error.message}</p>
+                        <p style="margin-top: 10px; font-size: 0.9rem;">Check console for details & verify your .env configuration</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderEventDetails(event) {
+            // Common SharePoint list fields - adjust based on your actual columns
+            const fieldsToShow = ['Description', 'Location', 'EventDate', 'StartTime', 'EndTime', 'Category', 'Status'];
+            
+            let html = '';
+            
+            // Show all fields from the event (except internal ones)
+            for (const [key, value] of Object.entries(event)) {
+                // Skip internal/system fields
+                if (key.startsWith('@') || key.startsWith('_') || 
+                    ['id', 'ContentType', 'Attachments', 'Edit', 'LinkTitleNoMenu', 'LinkTitle', 'ItemChildCount', 'FolderChildCount'].includes(key)) {
+                    continue;
+                }
+                
+                if (key === 'Title') continue; // Already shown as header
+                
+                if (value !== null && value !== undefined && value !== '') {
+                    html += `
+                        <div class="event-detail">
+                            <span class="label">${formatLabel(key)}:</span>
+                            <span>${formatValue(value)}</span>
+                        </div>
+                    `;
+                }
+            }
+            
+            return html || '<div class="event-detail"><span style="color: #999;">No additional details</span></div>';
+        }
+        
+        function formatLabel(key) {
+            // Convert camelCase or PascalCase to readable format
+            return key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim();
+        }
+        
+        function formatValue(value) {
+            // Handle dates
+            if (typeof value === 'string' && value.match(/^\d{4}-\d{2}-\d{2}T/)) {
+                return new Date(value).toLocaleString();
+            }
+            return value;
+        }
+        
+        // Initial load
+        fetchEvents();
+    </script>
+</body>
+</html>
