@@ -94,8 +94,14 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'OK', timestamp: new Date().toISOString() });
 });
 
-app.listen(PORT, () => {
-    console.log(`\n🚀 Server running at http://localhost:${PORT}`);
-    console.log(`📋 API endpoint: http://localhost:${PORT}/api/events`);
-    console.log(`🌐 Open http://localhost:${PORT} to view the demo\n`);
-});
+// Export for Vercel serverless functions
+module.exports = app;
+
+// Only start server if running locally (not on Vercel)
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`\n🚀 Server running at http://localhost:${PORT}`);
+        console.log(`📋 API endpoint: http://localhost:${PORT}/api/events`);
+        console.log(`🌐 Open http://localhost:${PORT} to view the demo\n`);
+    });
+}
